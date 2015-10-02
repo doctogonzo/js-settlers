@@ -1,8 +1,8 @@
-var express = require('express');
-var bodyParser = require('body-parser');
-//var multer = require('multer');
-var mongoose = require('mongoose');
-var Schema = mongoose.Schema;
+var express = require('express'),
+    bodyParser = require('body-parser'),
+    //multer = require('multer'),
+    mongoose = require('mongoose'),
+    Schema = mongoose.Schema;
 
 mongoose.connect('mongodb://localhost/jsSettlers');
 var app = express();
@@ -15,8 +15,19 @@ app.get('/', function (req, res) {
 });
 
 var server = app.listen(5000, function () {
-    var host = server.address().address;
-    var port = server.address().port;
+    var host = server.address().address,
+        port = server.address().port;
 
     console.log('App listening at http://%s:%s', host, port)
 });
+
+var sandbox = require('./sandbox/testRunner.js'),
+    util = require('util');
+sandbox.run("var i = 0;var results = [];runPlayer('j = 0', 0, {'inc': function(num) { i += num; if (i === 10) setResults(0); }});", [{code:'inc(5);inc(5);'}]).then(
+    function(res) {
+        console.log(util.inspect(res));
+    },
+    function() {
+        console.error("oh no they killed sendBox you bastards");
+    }
+);
