@@ -57,6 +57,7 @@ var VMObject = function () {
     this.tempCounter = 0;
     var thisObj = this;
     this.log = '';
+    this.logCnt = 0;
 
     this.addItems({
         'setTimeout': function (code,delay) {
@@ -69,19 +70,16 @@ var VMObject = function () {
             }
         },
         'writeLog': function (message) {
-            thisObj.log += '\nINFO: ' + message;
-            var trunc = thisObj.log.length - 1000;
-            if (trunc > 0)
-                thisObj.log = thisObj.log.slice(trunc);
+            thisObj.addLog('INFO', message);
         }
     });
 };
 
 VMObject.prototype.addLog = function(type, value) {
-    thisObj.log += '\n' + type + ': ' + message;
-    var trunc = thisObj.log.length - 1000;
+    this.log += '\n' + this.logCnt++ + ' ' + type + ': ' + value;
+    var trunc = this.log.length - 1000;
     if (trunc > 0)
-        thisObj.log = thisObj.log.slice(trunc);
+        this.log = this.log.slice(trunc);
 };
 
 VMObject.prototype._getTempStorage = function() {
@@ -152,6 +150,7 @@ VMObject.prototype.unsafeCall = function(methodId) {
 };
 
 VMObject.prototype.setError = function(e) {
+    this.addLog('ERROR', e);
     thisObj.log += '\nERROR: ' + e;
 };
 

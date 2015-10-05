@@ -23,7 +23,7 @@ var server = app.listen(5000, function () {
 
 var sandbox = require('./sandbox/testRunner.js'),
     util = require('util');
-sandbox.run("var i = 0;var results = [];runPlayer('j = 0', 0, {'inc': function(num) { i += num; if (i === 10) setResults(0); }});", [{code:'inc(5);inc(5);'}]).then(
+sandbox.run("var i = 0;var results = [];runPlayer('j = 0', 0, {'inc': function(num) { i += num; if (i === 10) setResults(0); }});", [{code:'writeLog("assa");inc(5);inc(5);'}]).then(
     function(res) {
         console.log(util.inspect(res));
     },

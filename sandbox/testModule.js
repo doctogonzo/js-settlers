@@ -5,12 +5,14 @@ var VMTestObject = vm_utils.extend(vm_utils.VMObject, {
     _constructor: function(players) {
         VMTestObject.superclass.constructor.apply(this);
         var thisObj = this;
+        var playersLog = [];
         this.addItems({
             'playersList': JSON.parse(JSON.stringify(players)),
             'setResults': function(res) {
                 process.send({msg: 'done', data: {
                     testResult: JSON.parse(JSON.stringify(res)) ,
-                    testLog:
+                    testLog: thisObj.log,
+                    playersLog: playersLog
                 }});
             },
             'runPlayer': function(configCode, playerIndex, methodsModel, errorCallback, configErrorCallback) {
@@ -49,11 +51,10 @@ var VMTestObject = vm_utils.extend(vm_utils.VMObject, {
                             } else {
                                 if (typeof errorCallback === 'function')
                                     this.safeCallback(errorCallback, undefined, playerIndex, msg.error, false);
-                                var errors = players[playerIndex].errors;
-                                if (!Array.isArray(errors))
-                                    players[playerIndex].errors = errors = [];
-                                errors.push(msg.error);
                             }
+                        } break;
+                        case 'log': {
+                            playersLog[msg.id] = msg.data;
                         } break;
                     }
                 }).on('close', function() {
@@ -72,8 +73,10 @@ var VMTestObject = vm_utils.extend(vm_utils.VMObject, {
 
                 submodule.send({
                     type: 'config',
+                    id: playerIndex,
                     data: {
                         configCode: configCode,
+                        id: playerIndex,
                         code: players[playerIndex].code,
                         methods: methods
                     }
