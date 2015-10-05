@@ -16,5 +16,20 @@
 
     <title>JS-Settlers</title>
 </head>
-
+    <div layout="column" layout-fill>
+        <md-toolbar layout="row" layout-align="end center" class="md-primary">
+            <label layout-padding>Login</label>
+        </md-toolbar>
+        <textarea placeholder="Enter your code here" flex layout-margin></textarea>
+        <md-divider class="md-primary" ng-if="!$last"></md-divider>
+        <div layout="row" layout-align="center center" layout-padding>
+            <md-button class="md-primary" ng-click="" ng-disabled="false" flex> Submit </md-button>
+            <md-progress-circular class="md-primary" md-mode="indeterminate" layout-align="end center"></md-progress-circular>
+        </div>
+    </div>
+    <div hidden>
+        <div><input type="text" placeholder="Login" /></div>
+        <div><input type="text" placeholder="Password" /></div>
+        <div><input type="button" value="Login" /></div>
+    </div>
 </html>
