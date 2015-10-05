@@ -8,7 +8,10 @@ var VMTestObject = vm_utils.extend(vm_utils.VMObject, {
         this.addItems({
             'playersList': JSON.parse(JSON.stringify(players)),
             'setResults': function(res) {
-                process.send({msg: 'done', data: JSON.parse(JSON.stringify(res))});
+                process.send({msg: 'done', data: {
+                    testResult: JSON.parse(JSON.stringify(res)) ,
+                    testLog:
+                }});
             },
             'runPlayer': function(configCode, playerIndex, methodsModel, errorCallback, configErrorCallback) {
                 var submodule = fork('./sandbox/playerModule.js');
@@ -55,7 +58,7 @@ var VMTestObject = vm_utils.extend(vm_utils.VMObject, {
                     }
                 }).on('close', function() {
                     if (!terminated) {
-                        console.error('user code fallen to the darkness');
+                        console.error('user code fallen in the darkness');
                         process.send({msg: 'systemError'});
                     }
                 });

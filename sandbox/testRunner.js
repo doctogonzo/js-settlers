@@ -25,7 +25,7 @@ exports.run = function(environmentSrc, players) {
         }
     }).on('close', function() {
         if (!resolved) {
-            console.error('test code fallen to the darkness');
+            console.error('test code fallen in the darkness');
             promise.reject();
         }
     });

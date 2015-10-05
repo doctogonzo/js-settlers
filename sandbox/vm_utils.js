@@ -1,61 +1,62 @@
 var util = require('util');
 var vm = require('vm');
 
-var VMPromise = function (vmObject) {
-    this._doneCallback = [];
-    this._errorCallback = [];
-    this._safeVal = null;
-    this._safeValApplied = false;
-    this._unsafeVal = null;
-    this._unsafeValApplied = false;
-    this.vmObject = vmObject;
-};
-
-VMPromise.prototype.safeResolve = function(value) {
-    if (this._safeValApplied || this._unsafeValApplied) {
-        return;
-    }
-    this._safeVal = value;
-    this._safeValApplied = true;
-    this._doneCallback.forEach(function(callback) {
-        this.vmObject.safeCallback(callback, undefined, value);
-    }, this);
-};
-
-VMPromise.prototype.unsafeResolve = function(value) {
-    if (this._safeValApplied || this._unsafeValApplied) {
-        return;
-    }
-    this._unsafeVal = value;
-    this._unsafeValApplied = true;
-    this._doneCallback.forEach(function(callback) {
-        this.vmObject.unsafeCallback(callback, undefined, value);
-    }, this);
-};
-
-VMPromise.prototype.getPromise = function() {
-    var thisObj = this;
-    return {
-        'then': function(doneCallback, errorCallback) {
-            if (this._safeValApplied) {
-                thisObj.vmObject.safeCallback(callback, undefined, thisObj._safeVal);
-            } else if (this._unsafeValApplied) {
-                thisObj.vmObject.safeCallback(callback, undefined, thisObj._unsafeVal);
-            } else {
-                if (typeof doneCallback === 'function')
-                    thisObj._doneCallback.push(doneCallback);
-                if (typeof errorCallback === 'function')
-                    thisObj._errorCallback.push(errorCallback);
-            }
-        }
-    }
-};
-exports.VMPromise = VMPromise;
+//var VMPromise = function (vmObject) {
+//    this._doneCallback = [];
+//    this._errorCallback = [];
+//    this._safeVal = null;
+//    this._safeValApplied = false;
+//    this._unsafeVal = null;
+//    this._unsafeValApplied = false;
+//    this.vmObject = vmObject;
+//};
+//
+//VMPromise.prototype.safeResolve = function(value) {
+//    if (this._safeValApplied || this._unsafeValApplied) {
+//        return;
+//    }
+//    this._safeVal = value;
+//    this._safeValApplied = true;
+//    this._doneCallback.forEach(function(callback) {
+//        this.vmObject.safeCallback(callback, undefined, value);
+//    }, this);
+//};
+//
+//VMPromise.prototype.unsafeResolve = function(value) {
+//    if (this._safeValApplied || this._unsafeValApplied) {
+//        return;
+//    }
+//    this._unsafeVal = value;
+//    this._unsafeValApplied = true;
+//    this._doneCallback.forEach(function(callback) {
+//        this.vmObject.unsafeCallback(callback, undefined, value);
+//    }, this);
+//};
+//
+//VMPromise.prototype.getPromise = function() {
+//    var thisObj = this;
+//    return {
+//        'then': function(doneCallback, errorCallback) {
+//            if (this._safeValApplied) {
+//                thisObj.vmObject.safeCallback(callback, undefined, thisObj._safeVal);
+//            } else if (this._unsafeValApplied) {
+//                thisObj.vmObject.safeCallback(callback, undefined, thisObj._unsafeVal);
+//            } else {
+//                if (typeof doneCallback === 'function')
+//                    thisObj._doneCallback.push(doneCallback);
+//                if (typeof errorCallback === 'function')
+//                    thisObj._errorCallback.push(errorCallback);
+//            }
+//        }
+//    }
+//};
+//exports.VMPromise = VMPromise;
 
 var VMObject = function () {
     this.sandbox = vm.createContext({});
     this.tempCounter = 0;
     var thisObj = this;
+    this.log = '';
 
     this.addItems({
         'setTimeout': function (code,delay) {
@@ -66,8 +67,21 @@ var VMObject = function () {
             } catch (error) {
                 thisObj.setError(error);
             }
+        },
+        'writeLog': function (message) {
+            thisObj.log += '\nINFO: ' + message;
+            var trunc = thisObj.log.length - 1000;
+            if (trunc > 0)
+                thisObj.log = thisObj.log.slice(trunc);
         }
     });
+};
+
+VMObject.prototype.addLog = function(type, value) {
+    thisObj.log += '\n' + type + ': ' + message;
+    var trunc = thisObj.log.length - 1000;
+    if (trunc > 0)
+        thisObj.log = thisObj.log.slice(trunc);
 };
 
 VMObject.prototype._getTempStorage = function() {
@@ -138,7 +152,7 @@ VMObject.prototype.unsafeCall = function(methodId) {
 };
 
 VMObject.prototype.setError = function(e) {
-    console.log('error: ' + util.inspect(e));
+    thisObj.log += '\nERROR: ' + e;
 };
 
 VMObject.prototype.safeCallback = function(callback, context) {
@@ -163,6 +177,11 @@ VMObject.prototype.unsafeCallback = function(callback, context) {
     this.popTempVariable(paramId);
 };
 
+VMObject.prototype.releaseObject = function() {
+    delete this.sandbox;
+};
+exports.VMObject = VMObject;
+
 exports.extend = function(parent, methods) {
     var child = function () {
         var args = Array.prototype.slice.call(arguments);
@@ -182,4 +201,3 @@ exports.extend = function(parent, methods) {
     }
     return child;
 };
-exports.VMObject = VMObject;
