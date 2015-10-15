@@ -1,5 +1,5 @@
-var util = require('util');
-var vm = require('vm');
+var vm = require('vm'),
+    fork = require('child_process').fork;
 
 //var VMPromise = function (vmObject) {
 //    this._doneCallback = [];
@@ -52,13 +52,112 @@ var vm = require('vm');
 //};
 //exports.VMPromise = VMPromise;
 
-var VMObject = function () {
+function vmAddLog(logInd, log, type, value) {
+    log += '\n' + logInd++ + ' ' + type + ': ' + value;
+    var trunc = log.length - 1000;
+    if (trunc > 0)
+        log = log.slice(trunc);
+    return log;
+}
+
+var vmGetResponseIdGenerator = function() {
+    var id = 0;
+    return {
+        getId: function() {
+            id++;
+            if (id >= Number.MAX_VALUE)
+                id = Number.MIN_VALUE;
+        }
+    }
+};
+exports.vmGetResponseIdGenerator = vmGetResponseIdGenerator;
+
+
+
+var VMRunner = function() {
+    this.subModule = null;
+    this.responseWait = {};
+    this.idGen = vmGetResponseIdGenerator();
+    this.logCnt = 0;
+    this.log = '';
+};
+
+VMRunner.prototype.run = function(vmId, src, methods, forkCnt) {
+    if (this.subModule === null) {
+        this.subModule = fork('./sandbox/vm_module.js');
+        var thisObj = this;
+        this.subModule.on('message', function (msg) {
+            switch (msg.msg) {
+                case 'call': {
+                    var data = methods[msg.id].call(methods, msg.data);
+                    if (typeof msg.responseId !== 'undefined') {
+                        thisObj.subModule.send({type: 'callback', id: msg.responseId, data: data});
+                    }
+                } break;
+                case 'error': {
+                    thisObj.onError(msg.data);
+                } break;
+                case 'log': {
+                    thisObj.onLog(msg.id, msg.data.type, msg.data.value);
+                } break;
+                case 'callback': {
+                    var response = thisObj.responseWait[msg.id];
+                    if (typeof response !== 'undefined') {
+                        response.callback.call(response.context, msg.data);
+                        delete thisObj.responseWait[msg.id];
+                    }
+                } break;
+            }
+        }).on('close', function () {
+            console.error('test code fallen in the darkness');
+        });
+    }
+    var arrMethods = [];
+    for (var method in methods) {
+        if (methods.hasOwnProperty(method))
+            arrMethods.push(method);
+    }
+    this.subModule.send({
+        msg: 'createVM',
+        id: vmId,
+        data: {
+            src: src,
+            methods: arrMethods,
+            forkCnt: forkCnt
+        }
+    })
+};
+
+VMRunner.prototype.call = function(vmId, method, args, callback, context) {
+    var respNeed = typeof callback === 'function';
+    var respId = respNeed ? this.idGen.getId() : undefined;
+    if (respNeed)
+        this.responseWait[respId] = { callback: callback, context: context };
+    this.subModule.send({ msg: 'call', id: vmId, data: { method: method, args: args }, responseId: respId });
+};
+
+VMRunner.prototype.onError = function(error) {
+
+};
+
+VMRunner.prototype.onLog = function (id, type, value) {
+    this.log = vmAddLog(this.logCnt++, this.log, type, value);
+};
+
+VMRunner.prototype.terminate = function() {
+    this.subModule.kill();
+    this.subModule = null;
+    this.responseWait = {};
+};
+exports.VMRunner = VMRunner;
+
+var VMObject = function (forkCnt) {
     this.sandbox = vm.createContext({});
     this.tempCounter = 0;
     var thisObj = this;
     this.log = '';
     this.logCnt = 0;
-
+    var forks = 0;
     this.addItems({
         'setTimeout': function (code,delay) {
             try {
@@ -69,17 +168,42 @@ var VMObject = function () {
                 thisObj.setError(error);
             }
         },
-        'writeLog': function (message) {
+        'writeLog': function(message) {
             thisObj.addLog('INFO', message);
+        },
+        'fork': function(src, methods) {
+            if (!(forks < forkCnt))
+                return;
+            forks++;
+            var child = new VMRunner();
+            var intMethods = {};
+            for (var method in methods) {
+                if (!methods.hasOwnProperty(method))
+                    continue;
+                intMethods[method] = (function(method) {
+                    return function(data) {
+                        thisObj.unsafeCallback(methods[method], methods, data);
+                    }
+                })(method);
+            }
+            child.run(0, src, intMethods, 0);
+            return {
+                'callMethod': function(method, args, callback, context) {
+                    child.call(0, method, args, typeof callback === 'function' ? function(data) {
+                        thisObj.unsafeCallback(callback, context, data);
+                    } : null);
+                },
+                'terminate': function() {
+                    child.terminate();
+                    forks--;
+                }
+            };
         }
     });
 };
 
 VMObject.prototype.addLog = function(type, value) {
-    this.log += '\n' + this.logCnt++ + ' ' + type + ': ' + value;
-    var trunc = this.log.length - 1000;
-    if (trunc > 0)
-        this.log = this.log.slice(trunc);
+    this.log = vmAddLog(this.logCnt++, this.log, type, value);
 };
 
 VMObject.prototype._getTempStorage = function() {
@@ -96,11 +220,11 @@ VMObject.prototype.pushTempVariable = function(value) {
 };
 
 VMObject.prototype.peekTempVariable = function(id) {
-    return this._getTempStorage()[res];
+    return this._getTempStorage()[id];
 };
 
 VMObject.prototype.popTempVariable = function(id) {
-    var res = this._getTempStorage()[res];
+    var res = this._getTempStorage()[id];
     delete this._getTempStorage()[id];
     return res;
 };
@@ -124,7 +248,7 @@ VMObject.prototype.eval = function(src) {
 VMObject.prototype._stringifyArguments = function(args) {
     var res = '';
     args.forEach(function(val) {
-        res += JSON.stringify(val) + ','
+        res += JSON.stringify(val) + ',';
     });
     return res.slice(0,-1);
 };
@@ -151,7 +275,7 @@ VMObject.prototype.unsafeCall = function(methodId) {
 
 VMObject.prototype.setError = function(e) {
     this.addLog('ERROR', e);
-    thisObj.log += '\nERROR: ' + e;
+    this.log += '\nERROR: ' + e;
 };
 
 VMObject.prototype.safeCallback = function(callback, context) {

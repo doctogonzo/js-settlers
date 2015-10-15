@@ -21,13 +21,16 @@ var server = app.listen(5000, function () {
     console.log('App listening at http://%s:%s', host, port)
 });
 
-var sandbox = require('./sandbox/testRunner.js'),
-    util = require('util');
-sandbox.run("var i = 0;var results = [];runPlayer('j = 0', 0, {'inc': function(num) { i += num; if (i === 10) setResults(0); }});", [{code:'writeLog("assa");inc(5);inc(5);'}]).then(
-    function(res) {
-        console.log(util.inspect(res));
+var vm_utils = require('./sandbox/vm_utils.js');
+var vm = new vm_utils.VMRunner();
+vm.run(
+    0,
+    "fork('done(\"fff\");', { 'done': function(msg) { done(\"message \" + msg); } });",
+    {
+        'done': function(msg) {
+            console.log('test done with ' + msg)
+        }
     },
-    function() {
-        console.error("oh no they killed sendBox you bastards");
-    }
+    1
 );
+
